@@ -89,6 +89,11 @@ details p { margin: 4px 0 0; }
     <div class="list" id="picks"></div>
   </section>
 
+  <section class="sec" id="track-sec">
+    <div class="sec-head"><h2>Track record</h2><span class="note">Flat $10 on every lean</span></div>
+    <div class="list" id="track"></div>
+  </section>
+
   <details class="learn">
     <summary>New to betting? How to read this</summary>
     <p><b>Odds like -170 or +136.</b> A minus number is the favorite: -170 means bet $170 to win $100 profit. A plus number is the underdog: +136 means bet $100 to win $136 profit.</p>
@@ -220,7 +225,24 @@ $("stake").addEventListener("input", (e) => {
   try { if (v > 0) localStorage.setItem("edge-stake", String(v)); } catch (err) {}
   renderPicks(); renderGames();
 });
+function renderTrack() {
+  const T = D.track, el = $("track");
+  if (!T || !T.n) {
+    el.innerHTML = '<div class="empty"><b>No finished leans yet.</b> Every lean is saved before its game starts and scored after the final score. ' +
+      (T && T.pending ? T.pending + " lean" + (T.pending > 1 ? "s are" : " is") + " waiting on results." : "Results will show here.") + "</div>";
+    return;
+  }
+  const sign = (n) => (n >= 0 ? "+" : "-") + money(Math.abs(n));
+  const lg = Object.entries(T.by_league).map(([k, v]) => esc(k) + " " + v.w + "-" + (v.n - v.w) + " (" + sign(v.pnl) + ")").join(" · ");
+  const sc = T.scored ? '<div class="note">Probability check on ' + T.scored.n + ' games (log loss, lower is better): model ' + T.scored.model + ", market " + T.scored.market + ". " +
+    (T.n < 100 ? "Too few games to trust yet (need about 100+)." : "") + "</div>" : "";
+  const rows = T.recent.map((r) => '<div class="g-meta"><span>' + (r.won ? "WON " : "LOST ") + esc(r.team) + " " + esc(r.odds) + (r.weak ? " (weaker lean)" : "") +
+    " vs " + esc(r.vs) + "</span><span>" + sign(r.pnl) + "</span></div>").join("");
+  el.innerHTML = '<div class="pay"><b>' + T.wins + " won, " + (T.n - T.wins) + " lost</b> of " + T.n + " finished leans. Net " + sign(T.pnl) + " on $10 each.<br><span class=\"note\">" + lg +
+    (T.pending ? " · " + T.pending + " still pending" : "") + "</span></div>" + sc + '<details class="learn"><summary>Recent results</summary>' + rows + "</details>";
+}
 ageText();
 renderPicks();
+renderTrack();
 renderGames();
 </script>

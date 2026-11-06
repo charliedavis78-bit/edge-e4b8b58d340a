@@ -13,6 +13,7 @@ from pathlib import Path
 from bet_math import ev_per_dollar, kelly
 from injuries import team_notes
 from injuries import team_impact
+import track
 from model import PARAMS, load, market_prob, run_elo, win_prob
 
 HERE = Path(__file__).parent
@@ -78,7 +79,11 @@ def build(bankroll, min_edge=0.05, min_games=10, blend=0.3):
             })
     picks.sort(key=lambda p: -p["edge"])
     pulled = con.execute("SELECT max(pulled_at) FROM games").fetchone()[0]
-    return {"pulled": pulled, "today": days[0], "tomorrow": days[1], "bankroll": bankroll,
+    track.restore(con)
+    track.save_picks(con, picks)
+    tr = track.results(con)
+    track.export(con)
+    return {"track": tr, "pulled": pulled, "today": days[0], "tomorrow": days[1], "bankroll": bankroll,
             "games": games, "picks": picks}
 
 

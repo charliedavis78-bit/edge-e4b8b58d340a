@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}   # lets you press "Run workflow" by hand
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -39,6 +39,8 @@ jobs:
       - name: Rebuild history if the cache is empty (first run, about 5 minutes)
         if: steps.cache.outputs.cache-hit == '' && hashFiles('data/games.db') == ''
         run: python3 pull_games.py --date "$(date +%F)" --days-back 50 --quiet --leagues nhl nba ncaam ncaaw
+      - name: Restore saved predictions from the repo
+        run: python3 track.py restore
       - name: Pull today and tomorrow, injuries, log predictions
         run: |
           python3 pull_games.py --days-back 1 --days-ahead 1 --quiet
@@ -46,6 +48,16 @@ jobs:
           python3 model.py log
       - name: Build the page
         run: python3 build_page.py --site
+      - name: Save the track record back to the repo
+        run: |
+          git config user.name "edge-sheet-bot"
+          git config user.email "edge-sheet-bot@users.noreply.github.com"
+          git add log
+          if ! git diff --cached --quiet; then
+            git commit -m "Update track record"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
       - name: Save game history
         uses: actions/cache/save@v4
         with:
