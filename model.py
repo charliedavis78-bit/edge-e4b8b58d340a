@@ -23,12 +23,25 @@ DB = Path(__file__).parent / "data" / "games.db"
 # per-league: home-court/ice edge in Elo points, K factor (how fast ratings move)
 PARAMS = {
     "NHL": dict(home=35, k=6),
-    "NBA": dict(home=70, k=20),
+    "NBA": dict(home=35, k=10),  # retuned on last season: scores better than 70/20 on both seasons
     "WNBA": dict(home=60, k=20),
     "NCAA Men": dict(home=90, k=24),
     "NCAA Women": dict(home=90, k=24),
     "MLB": dict(home=25, k=4),
 }
+
+
+def _season_start():
+    """Last season's ratings, pulled toward 1500 (log/season_start.json, built by season_ratings.py)."""
+    try:
+        import json
+        d = json.loads((Path(__file__).parent / "log" / "season_start.json").read_text())
+        return {(lg, team): r for lg, teams in d.items() for team, r in teams.items()}
+    except (OSError, ValueError):
+        return {}
+
+
+START = _season_start()
 
 
 def expected(r_home, r_away, home_adv):
@@ -42,7 +55,7 @@ def load(con, where="", args=()):
 
 def run_elo(rows):
     """Walk finished games in order. Returns ratings and per-game pre-game predictions."""
-    ratings = defaultdict(lambda: 1500.0)
+    ratings = defaultdict(lambda: 1500.0, START)
     games_played = defaultdict(int)
     preds = {}
     for g in rows:
