@@ -1,0 +1,226 @@
+<title>Edge Sheet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one column. Header with data age, flagged leans first, then the full slate with league chips. */
+:root {
+  --bg: #eef0ee; --surface: #ffffff; --fg: #15201b; --muted: #5d6b64; --line: #d5dbd7;
+  --accent: #0b7a4b; --accent-fg: #ffffff; --warn: #b4540a; --warn-bg: #fbeedd; --good-bg: #dff1e7;
+  --f-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Barlow", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1613; --surface: #17201c; --fg: #e6ece8; --muted: #92a199; --line: #2a3731;
+    --accent: #3ec98a; --accent-fg: #07130d; --warn: #f0a15a; --warn-bg: #33261a; --good-bg: #173326; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1613; --surface: #17201c; --fg: #e6ece8; --muted: #92a199; --line: #2a3731;
+  --accent: #3ec98a; --accent-fg: #07130d; --warn: #f0a15a; --warn-bg: #33261a; --good-bg: #173326; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.4;
+  padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 22px; }
+h1, h2 { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; margin: 0; text-wrap: balance; }
+h1 { font-size: 34px; line-height: 1; }
+h2 { font-size: 20px; color: var(--muted); }
+.age { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.age.stale { color: var(--warn); font-weight: 600; }
+.sec { display: grid; gap: 10px; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.note { font-size: 13px; color: var(--muted); }
+.pick { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; }
+.pick-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.pick-team { font-family: var(--f-display); font-size: 24px; font-weight: 700; line-height: 1.05; min-width: 0; }
+.pick-sub { font-size: 13px; color: var(--muted); }
+.odds { font-family: var(--f-mono); font-size: 20px; background: var(--accent); color: var(--accent-fg); padding: 4px 10px; border-radius: 6px; white-space: nowrap; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.stat { background: var(--good-bg); border-radius: 6px; padding: 6px 8px; }
+.stat b { display: block; font-family: var(--f-mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.inj { font-size: 13px; background: var(--warn-bg); color: var(--fg); border-radius: 6px; padding: 8px 10px; }
+.inj strong { color: var(--warn); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font: 600 13px var(--f-body); border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chip:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.game { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; }
+.g-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; }
+.g-team { font-weight: 600; overflow-wrap: anywhere; }
+.g-rec { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 4px; }
+.g-num { font-family: var(--f-mono); font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; }
+.g-meta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+details { font-size: 13px; }
+summary { cursor: pointer; color: var(--warn); font-weight: 600; }
+details p { margin: 4px 0 0; }
+.lg { font-family: var(--f-display); letter-spacing: .06em; text-transform: uppercase; font-size: 13px; color: var(--accent); }
+.empty { color: var(--muted); padding: 14px; border: 1px dashed var(--line); border-radius: 8px; }
+.foot { font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
+.list { display: grid; gap: 8px; }
+.stake { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; }
+.stake label { font-weight: 600; }
+.stake-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stake input { font: 500 22px var(--f-mono); width: 7.5em; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.stake input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.verdict { font-family: var(--f-display); font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.pay { background: var(--good-bg); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
+.pay b { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.g-pay { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.learn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.learn summary { color: var(--accent); }
+.learn p { margin: 6px 0 0; }
+</style>
+
+<main class="wrap">
+  <header>
+    <h1>Edge Sheet</h1>
+    <div class="age" id="age"></div>
+  </header>
+
+  <section class="stake">
+    <label for="stake">How much would you bet? ($)</label>
+    <div class="stake-row"><input id="stake" type="number" inputmode="decimal" min="1" step="1" value="10"><span class="note">Payouts below update as you type.</span></div>
+  </section>
+
+  <section class="sec" id="picks-sec">
+    <div class="sec-head"><h2>Who to bet on</h2><span class="note" id="picks-note"></span></div>
+    <div class="list" id="picks"></div>
+  </section>
+
+  <details class="learn">
+    <summary>New to betting? How to read this</summary>
+    <p><b>Odds like -170 or +136.</b> A minus number is the favorite: -170 means bet $170 to win $100 profit. A plus number is the underdog: +136 means bet $100 to win $136 profit.</p>
+    <p><b>Payout vs profit.</b> Payout is what you get back, including your own stake. Profit is the part on top.</p>
+    <p><b>Market vs model.</b> The market chance is what the odds imply. The model chance is this tool's own estimate. A lean only shows when the model sees a clearly better chance than the odds pay for.</p>
+    <p><b>Most days the right answer is no bet.</b> Even a good lean loses often. Start small, only use money you can afford to lose, and check who is injured before you bet.</p>
+  </details>
+
+  <section class="sec">
+    <div class="sec-head"><h2>Slate</h2></div>
+    <div class="chips" id="day-chips" role="group" aria-label="Day"></div>
+    <div class="chips" id="lg-chips" role="group" aria-label="League"></div>
+    <div class="chips"><button class="chip" id="lines-only" aria-pressed="true">Only games with lines</button></div>
+    <div class="list" id="games"></div>
+  </section>
+
+  <footer class="foot">
+    <div>Lines: DraftKings as shown by ESPN's public feed. Win chances: team ratings from past scores, blended 30/70 with the market. A lean is a lead to check, not a lock.</div>
+    <div>Injuries come from ESPN and cover NHL, NBA, WNBA and MLB. College basketball has none: check team news yourself. For NBA and WNBA the model lowers a team's rating by an estimate of the minutes and points its missing players supply; that estimate has not been tested yet. NHL and MLB have no such adjustment.</div>
+    <div>Stake sizes are quarter Kelly on an example bankroll, labeled below each lean. Not financial advice. Problem gambling help: 1-800-GAMBLER.</div>
+  </footer>
+</main>
+
+<script>
+const D = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const state = { day: D.today, lg: "All", linesOnly: true, stake: 10 };
+try { const s = parseFloat(localStorage.getItem("edge-stake")); if (s > 0) state.stake = s; } catch (e) {}
+const money = (n) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// American odds -> profit on a stake. +136: $10 wins $13.60. -170: $10 wins $5.88.
+function profit(odds, stake) { const o = parseFloat(odds); if (!o) return null; return o > 0 ? stake * o / 100 : stake * 100 / Math.abs(o); }
+function payLine(odds, stake) {
+  const p = profit(odds, stake);
+  return p == null ? "" : "Bet " + money(stake) + " → profit " + money(p) + ", total back " + money(stake + p);
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+}
+function ageText() {
+  const t = new Date(D.pulled);
+  const mins = Math.round((Date.now() - t.getTime()) / 60000);
+  const el = $("age");
+  let txt = "Data pulled " + t.toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  if (mins >= 0) txt += " (" + (mins < 60 ? mins + " min ago" : Math.round(mins / 60) + " h ago") + ")";
+  if (mins > 90) { el.classList.add("stale"); txt += ". Lines may be out of date: refresh before betting."; }
+  el.textContent = txt;
+}
+function injBlock(label, list) {
+  return list && list.length ? "<div><strong>" + esc(label) + ":</strong> " + esc(list.slice(0, 8).join("; ")) + "</div>" : "";
+}
+function renderPicks() {
+  const el = $("picks");
+  $("picks-note").textContent = "Example bankroll $" + D.bankroll;
+  if (!D.picks.length) {
+    el.innerHTML = '<div class="empty"><b>No bet recommended right now.</b> No game shows a clear edge over the odds, so the safest play is to pass. Check back as lines and injuries update.</div>';
+    return;
+  }
+  el.innerHTML = D.picks.map((p) => {
+    const impLine = (x) => x ? "<div><strong>" + esc(x.team) + " is missing about " + x.min + " of its minutes and " + x.pts + " points per game</strong> (model lowers its rating by " + x.elo + ").</div>" : "";
+    const inj = impLine(p.imp_team) + impLine(p.imp_opp) + injBlock(p.team + " out/uncertain", p.inj_team) + injBlock(p.vs + " out/uncertain", p.inj_opp);
+    const dep = p.inj_dependent ? '<div class="inj"><strong>Weaker lean.</strong> Without the injury estimate this game would not be flagged. That estimate is a guess that has not been tested.</div>' : "";
+    const college = p.league.startsWith("NCAA") ? '<div class="inj"><strong>No injury data for college games.</strong> Check team news.</div>' : "";
+    const you = '<div class="pay"><b>Your ' + money(state.stake) + ' bet:</b> ' + esc(payLine(p.odds, state.stake)) +
+      '<br><span class="note">If it loses you lose ' + money(state.stake) + '. Model says about ' + p.model + ' in 100 times it wins. Suggested size for a $' + D.bankroll + ' bankroll: ' + money(p.stake_usd) + ".</span></div>";
+    return '<article class="pick"><div class="verdict">Lean: bet on ' + esc(p.team) + ' to win</div><div class="pick-top"><div style="min-width:0"><div class="pick-team">' + esc(p.team) +
+      '</div><div class="pick-sub">' + esc(p.league) + " · " + (p.home ? "vs " : "at ") + esc(p.vs) + " · " + esc(fmtTime(p.start)) +
+      '</div></div><div class="odds">' + esc(p.odds) + '</div></div>' +
+      '<div class="stats"><div class="stat"><b>' + p.model + '%</b><span>Model</span></div>' +
+      '<div class="stat"><b>' + p.market + '%</b><span>Market</span></div>' +
+      '<div class="stat"><b>+' + p.edge + '</b><span>Edge pts</span></div>' +
+      '<div class="stat"><b>' + (p.ev >= 0 ? "+" : "") + p.ev + '</b><span>EV per $1</span></div>' +
+      '<div class="stat"><b>$' + p.stake_usd.toFixed(2) + '</b><span>Stake ' + p.stake_pct + '%</span></div></div>' +
+      you + dep + (inj ? '<div class="inj">' + inj + "</div>" : "") + college + "</article>";
+  }).join("");
+}
+function chips() {
+  const dayEl = $("day-chips");
+  dayEl.innerHTML = [[D.today, "Today"], [D.tomorrow, "Tomorrow"]].map(([v, t]) =>
+    '<button class="chip" data-day="' + v + '" aria-pressed="' + (state.day === v) + '">' + t + "</button>").join("");
+  const lgs = ["All", ...Array.from(new Set(D.games.filter((g) => g.day === state.day).map((g) => g.league)))];
+  if (!lgs.includes(state.lg)) state.lg = "All";
+  $("lg-chips").innerHTML = lgs.map((l) =>
+    '<button class="chip" data-lg="' + esc(l) + '" aria-pressed="' + (state.lg === l) + '">' + esc(l) + "</button>").join("");
+  $("lines-only").setAttribute("aria-pressed", state.linesOnly);
+}
+// A line is only usable if both moneylines are real numbers (books post "OFF" when a game is off the board).
+const hasML = (g) => isFinite(parseFloat(g.hml)) && isFinite(parseFloat(g.aml));
+function gameCard(g) {
+  const live = !g.done && g.status && g.status !== "Scheduled";
+  const showScore = g.done || live;
+  const hasLines = hasML(g);
+  const num = (s, ml) => showScore && s != null ? String(Math.round(s)) : (hasLines ? ml : "–");
+  const injCount = (g.inj.home || []).length + (g.inj.away || []).length;
+  const spread = g.spread != null ? "Spread " + (g.spread > 0 ? "+" : "") + g.spread + " (home)" : "";
+  const total = g.total != null ? "Total " + g.total : "";
+  const meta = [g.done ? "Final" : (live ? esc(g.status) : esc(fmtTime(g.start))), hasLines ? [spread, total].filter(Boolean).join(" · ") : ""].filter(Boolean).join(" · ");
+  const inj = injCount ? '<details><summary>' + injCount + " player" + (injCount > 1 ? "s" : "") + " out or uncertain</summary><p>" +
+    injBlock(g.away, g.inj.away) + injBlock(g.home, g.inj.home) + "</p></details>" : "";
+  const pay = hasLines && !g.done ? '<div class="g-pay">' + esc(g.away) + " wins " + money(profit(g.aml, state.stake) || 0) + " · " + esc(g.home) + " wins " + money(profit(g.hml, state.stake) || 0) + " (profit on " + money(state.stake) + ")</div>" : "";
+  return '<article class="game"><div class="lg">' + esc(g.league) + "</div>" +
+    '<div class="g-row"><div class="g-team">' + esc(g.away) + '<span class="g-rec">' + esc(g.arec || "") + '</span></div><div class="g-num">' + esc(num(g.as, g.aml)) + "</div></div>" +
+    '<div class="g-row"><div class="g-team">' + esc(g.home) + '<span class="g-rec">' + esc(g.hrec || "") + '</span></div><div class="g-num">' + esc(num(g.hs, g.hml)) + "</div></div>" +
+    '<div class="g-meta"><span>' + meta + "</span><span>" + (hasLines ? esc(g.book || "") + " moneyline" : "No line posted") + "</span></div>" + pay + inj + "</article>";
+}
+function renderGames() {
+  chips();
+  let list = D.games.filter((g) => g.day === state.day && (state.lg === "All" || g.league === state.lg));
+  if (state.linesOnly) list = list.filter(hasML);
+  list.sort((a, b) => (a.done - b.done) || String(a.start).localeCompare(String(b.start)));
+  $("games").innerHTML = list.length ? list.map(gameCard).join("") :
+    '<div class="empty">No games match. Try another day, or turn off "Only games with lines".</div>';
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button.chip");
+  if (!b) return;
+  if (b.dataset.day) state.day = b.dataset.day;
+  else if (b.dataset.lg) state.lg = b.dataset.lg;
+  else if (b.id === "lines-only") state.linesOnly = !state.linesOnly;
+  renderGames();
+});
+$("stake").value = state.stake;
+$("stake").addEventListener("input", (e) => {
+  const v = parseFloat(e.target.value);
+  state.stake = v > 0 ? v : 0;
+  try { if (v > 0) localStorage.setItem("edge-stake", String(v)); } catch (err) {}
+  renderPicks(); renderGames();
+});
+ageText();
+renderPicks();
+renderGames();
+</script>

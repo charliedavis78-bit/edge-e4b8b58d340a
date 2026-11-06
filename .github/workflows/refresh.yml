@@ -1,0 +1,58 @@
+name: Refresh Edge Sheet
+
+on:
+  schedule:
+    # Every 15 minutes, 3 PM to midnight US Central (21:00-05:59 UTC). GitHub cron is UTC and can run a few minutes late.
+    - cron: "*/15 21-23,0-5 * * *"
+  workflow_dispatch: {}   # lets you press "Run workflow" by hand
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: America/Chicago    # so "today" matches your evening, not UTC
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Restore saved game history
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: edge-data-${{ github.run_id }}
+          restore-keys: edge-data-
+      - name: Rebuild history if the cache is empty (first run, about 5 minutes)
+        if: steps.cache.outputs.cache-hit == '' && hashFiles('data/games.db') == ''
+        run: python3 pull_games.py --date "$(date +%F)" --days-back 50 --quiet --leagues nhl nba ncaam ncaaw
+      - name: Pull today and tomorrow, injuries, log predictions
+        run: |
+          python3 pull_games.py --days-back 1 --days-ahead 1 --quiet
+          python3 injuries.py
+          python3 model.py log
+      - name: Build the page
+        run: python3 build_page.py --site
+      - name: Save game history
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: edge-data-${{ github.run_id }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
