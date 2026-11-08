@@ -2,4 +2,4 @@ game_id,team,league,vs,start,odds,model,market,edge,inj_dependent,logged_at
 nba-401909291,Memphis Grizzlies,NBA,Oklahoma City Thunder,2026-11-07T01:00Z,+146,50.0,39.0,11.0,0,2026-11-07T00:34:14Z
 nba-401909292,Milwaukee Bucks,NBA,Toronto Raptors,2026-11-07T01:00Z,+136,46.2,40.7,5.5,1,2026-11-07T00:34:14Z
 nba-401909293,New Orleans Pelicans,NBA,Minnesota Timberwolves,2026-11-07T01:00Z,+140,46.9,40.0,6.9,1,2026-11-07T00:34:14Z
-nba-401909941,Washington Wizards,NBA,Oklahoma City Thunder,2026-11-08T01:00Z,+373,25.6,20.3,5.3,1,2026-11-07T06:36:18Z
+nba-401909941,Washington Wizards,NBA,Oklahoma City Thunder,2026-11-08T01:00Z,+458,22.8,17.2,5.5,0,2026-11-08T00:08:45Z
