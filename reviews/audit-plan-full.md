@@ -10,6 +10,20 @@ Adaptation note: these lenses were written for a React + Rust desktop app. Here 
 
 ---
 
+## Fix status (updated 2026-11-12)
+
+| Item | Status | Commit |
+|------|--------|--------|
+| C1 Lock grades replayed predictions | Fixed: only rows logged at or after `track.CUTOVER` count | a37022d |
+| C2 Footer describes the retired 30/70 blend | Fixed | a37022d |
+| R1 50-day cache rebuild | Fixed: rebuild from Oct 1 of the current season | 0cd0eb3 |
+| R3 `</script>` in embedded JSON | Fixed | 0cd0eb3 |
+| R4 Injury table drop-then-recreate | Fixed: swap in only if a feed answered | 0cd0eb3 |
+| R5 Silent ESPN failures | Fixed: exit 1 when every request fails; skipped events reported | 0cd0eb3 |
+| R6 `mkdir` without parents | Fixed | 0cd0eb3 |
+| R16 Unused imports | Fixed | 0cd0eb3 |
+| All other recommendations | Open | - |
+
 ## Master Verdict: APPROVE WITH CHANGES
 
 The core design is sound. The proof lock grades out of sample, the pick limits are conservative, the code compiles cleanly on Python 3.11, and the two copies of the rating engine give identical ratings (checked: max difference 0.0000 on this season's NBA, NHL and NCAA Men games). Two things should be fixed before any league can reach 100 graded games. First, the lock currently counts only replayed predictions (359 of 359 rows were logged before the new model went live), and one of the model's settings was tuned on those same games. Second, the page footer still tells readers that win chances are "blended 30/70 with the market", which is the retired method behind the 0-8 record. The rest is hardening: silent failures, a cache-rebuild window that becomes too short on Nov 20, stale docs, and duplicated settings.
