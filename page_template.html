@@ -116,7 +116,7 @@ details p { margin: 4px 0 0; }
   </section>
 
   <footer class="foot">
-    <div>Lines: DraftKings as shown by ESPN's public feed. Win chances: team ratings from past scores, blended 30/70 with the market. A lean is a lead to check, not a lock.</div>
+    <div>Lines: DraftKings as shown by ESPN's public feed. Win chances: team ratings from past scores. The model is mixed into the odds only in a league where it has proven it beats them; everywhere else it makes no picks. A lean is a lead to check, not a lock.</div>
     <div>Injuries come from ESPN and cover NHL, NBA, WNBA and MLB. College basketball has none: check team news yourself. For NBA and WNBA the model lowers a team's rating by an estimate of the minutes and points its missing players supply; that estimate has not been tested yet. NHL and MLB have no such adjustment.</div>
     <div>Stake sizes are quarter Kelly on an example bankroll, labeled below each lean. Not financial advice. Problem gambling help: 1-800-GAMBLER.</div>
   </footer>
@@ -241,10 +241,14 @@ function renderCheck() {
   el.innerHTML = keys.map((k) => {
     const v = L[k];
     const better = v.model < v.market;
+    const graded = v.n
+      ? v.n + " finished games graded since Nov 12. Model error " + v.model + ", odds error " + v.market + " (lower is better): " +
+        (better ? "the model is slightly ahead so far." : "the odds are more accurate so far.")
+      : "No finished games graded since Nov 12 yet.";
+    const rep = v.replay ? " " + v.replay + " earlier game" + (v.replay > 1 ? "s were" : " was") + " filled in by replaying the season and " + (v.replay > 1 ? "are" : "is") + " not counted." : "";
     return '<div class="game"><div class="g-meta"><span><b>' + esc(k) + "</b></span><span>" + esc(v.verdict) + "</span></div>" +
-      '<div class="note">' + v.n + " finished games. Model error " + v.model + ", odds error " + v.market + " (lower is better): " +
-      (better ? "the model is slightly ahead so far." : "the odds are more accurate so far.") + "</div></div>";
-  }).join("") + '<div class="note">A league gets picks only after ' + "100 finished games and only if the model clearly beats the odds on games it had not seen yet. Until then, passing is the right call.</div>";
+      '<div class="note">' + graded + rep + "</div></div>";
+  }).join("") + '<div class="note">A league gets picks only after ' + "100 finished games predicted live (from Nov 12 on), and only if the model clearly beats the odds on games it had not seen yet. Until then, passing is the right call.</div>";
 }
 function renderTrack() {
   const T = D.track, el = $("track");

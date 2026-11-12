@@ -163,9 +163,12 @@ def cmd_scorecard(_a):
     if not st:
         print("No finished games with logged predictions yet. Let the 15-minute job run for a few weeks.")
         return
-    print("%-11s %6s %9s %9s %9s %6s %5s  %s" % ("League", "Games", "Model", "Market", "OOS gain", "z", "w", "Verdict"))
+    print("%-11s %6s %9s %9s %9s %6s %5s %7s  %s" % ("League", "Games", "Model", "Market", "OOS gain", "z", "w", "Replay", "Verdict"))
+    f4 = lambda x: "-" if x is None else "%.4f" % x
     for lg, v in st.items():
-        print("%-11s %6d %9.4f %9.4f %+9.4f %6.2f %5.2f  %s" % (lg, v["n"], v["model"], v["market"], v["gain"], v["z"], v["w"], v["verdict"]))
+        print("%-11s %6d %9s %9s %+9.4f %6.2f %5.2f %7d  %s" % (lg, v["n"], f4(v["model"]), f4(v["market"]), v["gain"], v["z"], v["w"],
+                                                              v["replay"], v["verdict"]))
+    print("\nReplay: predictions logged before the points model went live (%s). Shown for reference, not graded." % track.CUTOVER)
     print("\nModel/Market: log loss, lower is better. OOS gain: how much the blend beat the odds on games it had not")
     print("seen (positive = better). Picks only in proven leagues: %d+ games, gain > %.3f, z > %.0f." % (track.MIN_GRADED, track.MIN_GAIN, track.MIN_Z))
 

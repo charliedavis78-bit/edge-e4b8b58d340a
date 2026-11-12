@@ -96,6 +96,10 @@ def blend(model, market, w):
 WEIGHTS = [0.0] + [i / 20 for i in range(1, 11)]  # model share tried in the blend, 0 to 0.5
 WARMUP = 30   # first games per league only train the weight, they are not graded
 MIN_Z = 2.0   # the gain over the odds must be about 2 standard errors above zero
+# The points model went live at this time (commit e0d667a). Predictions logged earlier were filled in by
+# replaying the season, and one setting (keep) was chosen on those same games, so they are partly
+# in-sample. Only predictions logged at or after this time count toward the proof check.
+CUTOVER = "2026-11-12T11:47:28Z"
 
 
 def league_status(con):
@@ -106,18 +110,28 @@ def league_status(con):
     MIN_GRADED+ finished games and that out-of-sample gain over the odds is above MIN_GAIN and about
     two standard errors above zero. In testing on simulated data a model with no real edge passed this
     under 1% of the time (a version that fitted and graded on the same games passed 11-25%).
-    Proven leagues use the weight fitted on all their games; every other league gets weight 0 (no picks)."""
+    Proven leagues use the weight fitted on all their games; every other league gets weight 0 (no picks).
+    Only predictions logged at or after CUTOVER are graded; earlier (replayed) ones are counted in `replay`."""
     ensure(con)
-    rows = con.execute("SELECT p.league, p.model_prob, p.market_prob, g.home_score, g.away_score FROM predictions p "
+    rows = con.execute("SELECT p.league, p.model_prob, p.market_prob, g.home_score, g.away_score, p.logged_at "
+                       "FROM predictions p "
                        "JOIN games g ON g.game_id = p.game_id WHERE g.completed = 1 AND g.home_score != g.away_score "
                        "AND p.model_prob IS NOT NULL AND p.market_prob IS NOT NULL "
                        "ORDER BY g.start_time_utc, g.game_id").fetchall()
-    by = {}
-    for lg, pm, pk, hs, as_ in rows:
+    by, replay = {}, {}
+    for lg, pm, pk, hs, as_, logged in rows:
+        if (logged or "") < CUTOVER:
+            replay[lg] = replay.get(lg, 0) + 1
+            continue
         by.setdefault(lg, []).append((float(pm), float(pk), 1.0 if hs > as_ else 0.0))
     out = {}
-    for lg, v in sorted(by.items()):
+    for lg in sorted(set(by) | set(replay)):
+        v = by.get(lg, [])
         n = len(v)
+        if not n:
+            out[lg] = {"n": 0, "model": None, "market": None, "gain": 0.0, "z": 0.0, "w": 0.0, "proven": False,
+                       "verdict": "Testing: 0 of %d games" % MIN_GRADED, "replay": replay.get(lg, 0)}
+            continue
         cum = [0.0] * len(WEIGHTS)
         gains = []
         for i, (a, b, y) in enumerate(v):
@@ -141,7 +155,8 @@ def league_status(con):
         out[lg] = {"n": n, "model": round(sum(_ll(a, y) for a, b, y in v) / n, 4),
                    "market": round(sum(_ll(b, y) for a, b, y in v) / n, 4),
                    "gain": round(gain, 4), "z": round(z, 2),
-                   "w": WEIGHTS[best_j] if proven else 0.0, "proven": proven, "verdict": verdict}
+                   "w": WEIGHTS[best_j] if proven else 0.0, "proven": proven, "verdict": verdict,
+                   "replay": replay.get(lg, 0)}
     return out
 
 
