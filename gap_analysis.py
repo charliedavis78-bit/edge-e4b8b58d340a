@@ -13,7 +13,9 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-from model import PARAMS, expected
+# The retired Elo settings this script studies (model.py moved to a points rating on 2026-11-12).
+PARAMS = {"NHL": dict(home=35, k=6), "NBA": dict(home=35, k=10), "WNBA": dict(home=60, k=20), "NCAA Men": dict(home=90, k=24), "NCAA Women": dict(home=90, k=24), "MLB": dict(home=25, k=4)}
+expected = lambda r_home, r_away, home_adv: 1 / (1 + 10 ** (-(r_home + home_adv - r_away) / 400))
 
 DB = Path(__file__).parent / "data" / "games.db"
 
