@@ -21,10 +21,12 @@ python3 bet_math.py result --id 1 --outcome win
 python3 bet_math.py report
 ```
 
-## Model (model.py)
+## Model (model.py), updated 2026-11-12
 
-- `python3 model.py backtest`: Elo vs. the market. Needs saved pre-game lines, which ESPN removes after games end. The puller now keeps the last lines it saw, so **run `python3 pull_games.py` every day before games start**; after a few weeks the backtest has data. Until then the model is unproven.
-- `python3 model.py picks --bankroll 500`: flags games where a market-blended Elo beats the line. Guards: teams need 10+ rated games, the model is blended 30/70 with the market, and edges over 15 points are discarded as model error.
+- **Points rating** (replaced the win/loss Elo): each team has a rating in points (goals for NHL). Predicted margin = home rating - away rating + home edge, minus a back-to-back penalty (NBA, NHL). Settings are tuned on the 2025-26 season with `tune.py`; part of last season's rating carries over (`season_ratings.py`). On the 320 logged games it scored better than the old Elo in NBA (0.489 vs 0.573) and NCAA Men (0.514 vs 0.532), and about the same in NHL. Model probabilities for games logged before 2026-11-12 were filled in by replaying the season (each game predicted only from earlier games, no injury data).
+- **Proof gate** (`track.league_status`): every pre-game prediction is saved and scored. A league gets picks only after 100+ finished games and only if mixing the model into the odds (log-odds blend) beats the odds alone on games it had not seen: each game is graded with a weight fitted only on earlier games, and the gain must be about two standard errors above zero. In simulations a worthless model passes this under 1% of the time. Otherwise its weight is 0 and nothing is picked. The old fixed 30% blend let a weaker model push picks onto underdogs, which is what produced the 0-8 start.
+- **Pick rules**: edge 3 to 10 points, odds between -250 and +250, positive EV, quarter Kelly capped at 2% of bankroll.
+- `python3 model.py scorecard` shows each league's status. `python3 model.py picks --bankroll 500` lists picks (only in proven leagues).
 
 ## Season status (as of 2026-11-06)
 

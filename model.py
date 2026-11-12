@@ -20,19 +20,26 @@ from injuries import team_impact, team_notes
 from bet_math import american_to_decimal, devig, ev_per_dollar, kelly
 
 DB = Path(__file__).parent / "data" / "games.db"
-# per-league: home-court/ice edge in Elo points, K factor (how fast ratings move)
+# Points-rating model (replaced the old win/loss Elo on 2026-11-12; Elo scored worse than this on both
+# last season and the logged games). Every team has a rating in points (goals for NHL). Predicted home
+# margin = home rating - away rating + home edge (- rest penalty on a back-to-back). Win chance =
+# logistic(margin / scale). After each game both ratings move by k * (actual margin - predicted margin).
+# Settings tuned on the 2025-26 season with tune.py (prequential: each game predicted before it is used).
+#   hca: home edge in points; k: how fast ratings move; scale: margin-to-probability spread;
+#   rest: points lost on the second night of a back-to-back; cap: largest margin counted (blowouts);
+#   keep: share of last season's rating carried into this season (rest regresses to average).
 PARAMS = {
-    "NHL": dict(home=35, k=6),
-    "NBA": dict(home=35, k=10),  # retuned on last season: scores better than 70/20 on both seasons
-    "WNBA": dict(home=60, k=20),
-    "NCAA Men": dict(home=90, k=24),
-    "NCAA Women": dict(home=90, k=24),
-    "MLB": dict(home=25, k=4),
+    "NBA": dict(hca=1.0, k=0.02, scale=4.5, rest=1.0, cap=25, keep=0.5),
+    "NCAA Men": dict(hca=3.0, k=0.08, scale=5.5, rest=0.0, cap=25, keep=0.67),
+    "NCAA Women": dict(hca=3.0, k=0.08, scale=5.5, rest=0.0, cap=25, keep=0.0),  # untested: no lines, never picked
+    "NHL": dict(hca=0.05, k=0.01, scale=1.0, rest=0.15, cap=4, keep=0.8),
+    "WNBA": dict(hca=1.5, k=0.03, scale=4.5, rest=0.0, cap=25, keep=0.0),  # untested (off-season)
+    "MLB": dict(hca=0.1, k=0.01, scale=2.5, rest=0.0, cap=6, keep=0.0),  # untested (off-season)
 }
 
 
 def _season_start():
-    """Last season's ratings, pulled toward 1500 (log/season_start.json, built by season_ratings.py)."""
+    """Last season's final ratings x keep (log/season_start.json, built by season_ratings.py)."""
     try:
         import json
         d = json.loads((Path(__file__).parent / "log" / "season_start.json").read_text())
@@ -44,8 +51,12 @@ def _season_start():
 START = _season_start()
 
 
-def expected(r_home, r_away, home_adv):
-    return 1 / (1 + 10 ** (-(r_home + home_adv - r_away) / 400))
+def _sig(x):
+    return 1 / (1 + math.exp(-max(min(x, 30), -30)))
+
+
+def margin_to_prob(margin, league):
+    return _sig(margin / PARAMS[league]["scale"])
 
 
 def load(con, where="", args=()):
@@ -53,28 +64,49 @@ def load(con, where="", args=()):
     return con.execute("SELECT * FROM games %s ORDER BY game_date, start_time_utc" % where, args).fetchall()
 
 
-def run_elo(rows):
-    """Walk finished games in order. Returns ratings and per-game pre-game predictions."""
-    ratings = defaultdict(lambda: 1500.0, START)
+def _rest_adj(g, last, p):
+    """Back-to-back penalty in points, from the home team's point of view."""
+    if not p["rest"]:
+        return 0.0
+    d = date.fromisoformat(g["game_date"])
+    adj = 0.0
+    lh, la = last.get((g["league"], g["home_team"])), last.get((g["league"], g["away_team"]))
+    if lh and (d - lh).days == 1:
+        adj -= p["rest"]
+    if la and (d - la).days == 1:
+        adj += p["rest"]
+    return adj
+
+
+def run_ratings(rows):
+    """Walk finished games in order. Returns ratings and per-game pre-game home win chances.
+    Also sets run_ratings.games_played and run_ratings.last_played (for rest-day checks)."""
+    ratings = defaultdict(float, START)
     games_played = defaultdict(int)
+    last = {}
     preds = {}
     for g in rows:
-        p = PARAMS[g["league"]]
-        key_h, key_a = (g["league"], g["home_team"]), (g["league"], g["away_team"])
-        neutral = g["neutral_site"]
-        prob = expected(ratings[key_h], ratings[key_a], 0 if neutral else p["home"])
-        preds[g["game_id"]] = prob
+        lg = g["league"]
+        if lg not in PARAMS:
+            continue
+        p = PARAMS[lg]
+        kh, ka = (lg, g["home_team"]), (lg, g["away_team"])
+        pm = ratings[kh] - ratings[ka] + (0 if g["neutral_site"] else p["hca"]) + _rest_adj(g, last, p)
+        preds[g["game_id"]] = margin_to_prob(pm, lg)
         if g["completed"] and g["home_score"] is not None and g["home_score"] != g["away_score"]:
-            result = 1.0 if g["home_score"] > g["away_score"] else 0.0
-            margin = abs(g["home_score"] - g["away_score"])
-            mult = math.log(margin + 1) + 1  # bigger wins move ratings more, with diminishing returns
-            delta = p["k"] * mult * (result - prob)
-            ratings[key_h] += delta
-            ratings[key_a] -= delta
-            games_played[key_h] += 1
-            games_played[key_a] += 1
-    run_elo.games_played = games_played
+            m = max(-p["cap"], min(p["cap"], g["home_score"] - g["away_score"]))
+            delta = p["k"] * (m - pm)
+            ratings[kh] += delta
+            ratings[ka] -= delta
+            games_played[kh] += 1
+            games_played[ka] += 1
+            last[kh] = last[ka] = date.fromisoformat(g["game_date"])
+    run_ratings.games_played = games_played
+    run_ratings.last_played = last
     return ratings, preds
+
+
+run_elo = run_ratings  # old name, kept so other scripts keep working
 
 
 def market_prob(g):
@@ -86,22 +118,27 @@ def market_prob(g):
 
 
 def win_prob(con, g, ratings, use_injuries=True):
-    """Home win probability from Elo. For NBA/WNBA, optionally lowers each team's rating by the
-    estimated strength lost to injuries (see injuries.team_impact: an uncalibrated estimate)."""
+    """Home win chance from the points ratings. For NBA/WNBA, optionally lowers each team's rating by the
+    estimated strength lost to injuries (injuries.team_impact, an uncalibrated estimate in Elo points,
+    converted to points here)."""
     lg = g["league"]
+    p = PARAMS[lg]
     rh, ra = ratings[(lg, g["home_team"])], ratings[(lg, g["away_team"])]
     if use_injuries:
-        rh -= team_impact(con, lg, g["home_team"])["elo"]
-        ra -= team_impact(con, lg, g["away_team"])["elo"]
-    return expected(rh, ra, 0 if g["neutral_site"] else PARAMS[lg]["home"])
+        to_pts = math.log(10) / 400 * p["scale"]  # Elo points -> rating points at this league's scale
+        rh -= team_impact(con, lg, g["home_team"])["elo"] * to_pts
+        ra -= team_impact(con, lg, g["away_team"])["elo"] * to_pts
+    last = getattr(run_ratings, "last_played", {})
+    pm = rh - ra + (0 if g["neutral_site"] else p["hca"]) + _rest_adj(g, last, p)
+    return margin_to_prob(pm, lg)
 
 
 def cmd_log(_a):
     """Save today's/tomorrow's pre-game predictions so they can be scored once games finish."""
     con = sqlite3.connect(str(DB))
-    con.execute("CREATE TABLE IF NOT EXISTS predictions (game_id PRIMARY KEY, league, logged_at, "
-                "elo_prob, elo_inj_prob, market_prob)")
-    ratings, _ = run_elo(load(con, "WHERE completed = 1"))
+    import track
+    track.ensure(con)
+    ratings, _ = run_ratings(load(con, "WHERE completed = 1"))
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     n = 0
     for g in load(con, "WHERE completed = 0 AND start_time_utc > ?", (now[:16],)):
@@ -110,36 +147,27 @@ def cmd_log(_a):
         pm = market_prob(g)
         if pm is None:
             continue  # only log games that have a line to compare against
-        con.execute("INSERT OR REPLACE INTO predictions VALUES (?,?,?,?,?,?)", (
-            g["game_id"], g["league"], now, win_prob(con, g, ratings, False), win_prob(con, g, ratings, True), pm))
+        # Re-logging replaces the row, so the saved call is the last one made before the game started.
+        con.execute("INSERT OR REPLACE INTO predictions (game_id, league, logged_at, market_prob, model_prob) "
+                    "VALUES (?,?,?,?,?)", (g["game_id"], g["league"], now, pm, win_prob(con, g, ratings, True)))
         n += 1
     con.commit()
     print("Logged %d pre-game predictions." % n)
 
 
 def cmd_scorecard(_a):
-    """Score logged predictions on finished games: Elo vs Elo+injuries vs the market."""
+    """Score logged predictions on finished games, model vs the market, and say which leagues are proven."""
+    import track
     con = sqlite3.connect(str(DB))
-    try:
-        rows = con.execute("SELECT p.league, p.elo_prob, p.elo_inj_prob, p.market_prob, g.home_score, g.away_score "
-                           "FROM predictions p JOIN games g ON g.game_id = p.game_id "
-                           "WHERE g.completed = 1 AND g.home_score != g.away_score").fetchall()
-    except sqlite3.OperationalError:
-        rows = []
-    if not rows:
+    st = track.league_status(con)
+    if not st:
         print("No finished games with logged predictions yet. Let the 15-minute job run for a few weeks.")
         return
-    ll = lambda p, y: -(y * math.log(min(max(p, 0.01), 0.99)) + (1 - y) * math.log(1 - min(max(p, 0.01), 0.99)))
-    by = defaultdict(list)
-    for lg, pe, pi, pm, hs, as_ in rows:
-        by[lg].append((pe, pi, pm, 1.0 if hs > as_ else 0.0))
-    print("%-11s %6s %12s %14s %12s  (log loss, lower is better)" % ("League", "Games", "Elo", "Elo+injuries", "Market"))
-    for lg, v in by.items():
-        n = len(v)
-        print("%-11s %6d %12.4f %14.4f %12.4f" % (lg, n, sum(ll(a, y) for a, b, c, y in v) / n,
-              sum(ll(b, y) for a, b, c, y in v) / n, sum(ll(c, y) for a, b, c, y in v) / n))
-    print("\nElo+injuries below Elo = the injury adjustment helps. Market below both = no edge over the book yet.")
-    print("Need roughly 100+ games per league before trusting any gap.")
+    print("%-11s %6s %9s %9s %9s %6s %5s  %s" % ("League", "Games", "Model", "Market", "OOS gain", "z", "w", "Verdict"))
+    for lg, v in st.items():
+        print("%-11s %6d %9.4f %9.4f %+9.4f %6.2f %5.2f  %s" % (lg, v["n"], v["model"], v["market"], v["gain"], v["z"], v["w"], v["verdict"]))
+    print("\nModel/Market: log loss, lower is better. OOS gain: how much the blend beat the odds on games it had not")
+    print("seen (positive = better). Picks only in proven leagues: %d+ games, gain > %.3f, z > %.0f." % (track.MIN_GRADED, track.MIN_GAIN, track.MIN_Z))
 
 
 def cmd_backtest(_a):
@@ -167,63 +195,75 @@ def cmd_backtest(_a):
             s.setdefault("ll_e_m", 0.0)
             s["ll_e_m"] += -(y * math.log(pe) + (1 - y) * math.log(1 - pe))
     print("%-11s %6s %8s | %6s %12s %12s   (log loss: lower is better)" %
-          ("League", "Games", "Elo win%", "w/odds", "Elo logloss", "Mkt logloss"))
+          ("League", "Games", "Win%", "w/odds", "Model ll", "Mkt logloss"))
     for lg, s in stats.items():
         nm = s["nm"]
         print("%-11s %6d %7.1f%% | %6d %12s %12s" % (
             lg, s["n"], 100 * s["hit"] / s["n"], nm,
             "%.4f" % (s.get("ll_e_m", 0) / nm) if nm else "-",
             "%.4f" % (s["ll_m"] / nm) if nm else "-"))
-    print("\nIf Elo log loss is not below the market's, the model has no edge over the book: do not bet it.")
+    print("\nIf the model log loss is not below the market's, the model has no edge over the book: do not bet it.")
     print("Odds only exist for games pulled with lines; early-season sample sizes are small.")
+
+
+# Pick rules. Edges beyond MAX_EDGE almost always mean the model is wrong, not the book. Long shots
+# (beyond MAX_DOG) are where books overcharge the most, and big favorites (beyond MAX_FAV) pay too little
+# for the risk, so both are skipped.
+MIN_EDGE, MAX_EDGE = 0.03, 0.10
+MAX_DOG, MAX_FAV = 250, -250
+MAX_STAKE = 0.02  # never suggest more than 2% of the bankroll on one game
+
+
+def find_picks(con, days, bankroll, min_games=10):
+    """Flag value bets on the given days. Only leagues whose model is proven (track.league_status) are
+    considered; elsewhere the model has not shown it beats the odds, so nothing is flagged."""
+    import track
+    status = track.league_status(con)
+    ratings, _ = run_ratings(load(con, "WHERE completed = 1"))
+    gp = run_ratings.games_played
+    picks = []
+    for g in load(con, "WHERE game_date IN (%s) AND completed = 0" % ",".join("?" * len(days)), tuple(days)):
+        lg, h, a = g["league"], g["home_team"], g["away_team"]
+        w = status.get(lg, {}).get("w", 0.0)
+        pm = market_prob(g)
+        if not w or pm is None or lg not in PARAMS or min(gp[(lg, h)], gp[(lg, a)]) < min_games:
+            continue
+        ph = track.blend(win_prob(con, g, ratings, True), pm, w)
+        ph0 = track.blend(win_prob(con, g, ratings, False), pm, w)
+        for team, pmod, pmk, odds, pmod0 in ((h, ph, pm, g["home_ml"], ph0), (a, 1 - ph, 1 - pm, g["away_ml"], 1 - ph0)):
+            try:
+                o = float(odds)
+            except (TypeError, ValueError):
+                continue
+            edge = pmod - pmk
+            if not (MIN_EDGE <= edge <= MAX_EDGE) or o > MAX_DOG or o < MAX_FAV:
+                continue
+            ev = ev_per_dollar(o, pmod)
+            if ev <= 0:
+                continue
+            stake = min(kelly(o, pmod, 0.25), MAX_STAKE)
+            picks.append({"g": g, "league": lg, "team": team, "vs": a if team == h else h, "home": team == h,
+                          "odds": odds, "model": pmod, "market": pmk, "edge": edge, "ev": ev, "stake": stake,
+                          "stake_usd": stake * bankroll, "inj_dependent": (pmod0 - pmk) < MIN_EDGE})
+    picks.sort(key=lambda p: -p["edge"])
+    return picks, status
 
 
 def cmd_picks(a):
     con = sqlite3.connect(str(DB))
     day = a.date or date.today().isoformat()
-    history = load(con, "WHERE game_date < ? OR completed = 1", (day,))
-    ratings, _ = run_elo([g for g in history if g["completed"]])
-    todays = load(con, "WHERE game_date = ? AND completed = 0", (day,))
-    print("%s: %d upcoming games\n" % (day, len(todays)))
-    flagged = 0
-    gp = run_elo.games_played
-    for g in todays:
-        p = PARAMS[g["league"]]
-        if min(gp[(g["league"], g["home_team"])], gp[(g["league"], g["away_team"])]) < a.min_games:
-            continue  # ratings for teams with few games are noise
-        ph = win_prob(con, g, ratings, not a.no_injuries)
-        pm = market_prob(g)
-        if pm is None:
-            continue
-        ph = (1 - a.blend) * pm + a.blend * ph  # shrink toward the market: it is usually the better forecaster
-        for side, prob_model, prob_mkt, odds, team in (
-            ("home", ph, pm, g["home_ml"], g["home_team"]),
-            ("away", 1 - ph, 1 - pm, g["away_ml"], g["away_team"]),
-        ):
-            edge = prob_model - prob_mkt
-            ev = ev_per_dollar(float(odds), prob_model)
-            if edge > 0.15:
-                continue  # an edge this big almost always means the model is wrong, not the book
-            if edge >= a.min_edge and ev > 0:
-                flagged += 1
-                stake = kelly(float(odds), prob_model, 0.25)
-                msg = "  %-10s %-28s %s  model %.1f%% vs market %.1f%%  edge %+.1f pts  EV %+.3f/$1  stake %.1f%%" % (
-                    g["league"], team, odds, prob_model * 100, prob_mkt * 100, edge * 100, ev, stake * 100)
-                if a.bankroll:
-                    msg += " ($%.2f)" % (stake * a.bankroll)
-                print(msg)
-                for tm in (g["home_team"], g["away_team"]):
-                    notes = team_notes(con, g["league"], tm)
-                    if notes:
-                        print("      %s not playing/uncertain: %s" % (tm, "; ".join(notes[:8])))
-                    imp = team_impact(con, g["league"], tm)
-                    if imp["elo"]:
-                        print("      %s injury penalty: -%.0f Elo (%.0f min, %.0f pts/game missing)" % (tm, imp["elo"], imp["min_lost"], imp["pts_lost"]))
-                if g["league"].startswith("NCAA"):
-                    print("      (no injury data exists for college games: check team news yourself)")
-    if not flagged:
-        print("No games clear the %.0f-point edge threshold. Passing is a valid result." % (a.min_edge * 100))
-    print("\nModel = past scores + (NBA/WNBA only) an estimated injury penalty. No NHL/MLB goalie or pitcher, rest or lineup data. Leads to check, not locks.")
+    picks, status = find_picks(con, [day], a.bankroll or 0)
+    for lg, v in status.items():
+        print("  %-11s %s" % (lg, v["verdict"]))
+    print()
+    for p in picks:
+        msg = "  %-10s %-28s %s  model %.1f%% vs market %.1f%%  edge %+.1f pts  EV %+.3f/$1  stake %.1f%%" % (
+            p["league"], p["team"], p["odds"], p["model"] * 100, p["market"] * 100, p["edge"] * 100, p["ev"], p["stake"] * 100)
+        if a.bankroll:
+            msg += " ($%.2f)" % p["stake_usd"]
+        print(msg)
+    if not picks:
+        print("No bets: either no league has proven its model yet, or no game clears the edge rules. Passing is a valid result.")
 
 
 def main():
@@ -233,11 +273,8 @@ def main():
     sub.add_parser("log").set_defaults(fn=cmd_log)
     sub.add_parser("scorecard").set_defaults(fn=cmd_scorecard)
     p = sub.add_parser("picks"); p.set_defaults(fn=cmd_picks)
-    p.add_argument("--date"); p.add_argument("--min-edge", type=float, default=0.05)
+    p.add_argument("--date")
     p.add_argument("--bankroll", type=float)
-    p.add_argument("--no-injuries", action="store_true", help="ignore the injury penalty")
-    p.add_argument("--min-games", type=int, default=10, help="skip teams with fewer rated games")
-    p.add_argument("--blend", type=float, default=0.3, help="weight on Elo vs. market (0=market only)")
     a = ap.parse_args()
     a.fn(a)
 

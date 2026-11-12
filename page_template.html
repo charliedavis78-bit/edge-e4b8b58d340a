@@ -89,8 +89,13 @@ details p { margin: 4px 0 0; }
     <div class="list" id="picks"></div>
   </section>
 
+  <section class="sec" id="check-sec">
+    <div class="sec-head"><h2>Model check</h2><span class="note">Is the model better than the odds?</span></div>
+    <div class="list" id="check"></div>
+  </section>
+
   <section class="sec" id="track-sec">
-    <div class="sec-head"><h2>Track record</h2><span class="note">Flat $10 on every lean</span></div>
+    <div class="sec-head"><h2>Track record</h2><span class="note">Flat $10 on every lean. Leans before Nov 12 came from the old model.</span></div>
     <div class="list" id="track"></div>
   </section>
 
@@ -152,7 +157,11 @@ function renderPicks() {
   const el = $("picks");
   $("picks-note").textContent = "Example bankroll $" + D.bankroll;
   if (!D.picks.length) {
-    el.innerHTML = '<div class="empty"><b>No bet recommended right now.</b> No game shows a clear edge over the odds, so the safest play is to pass. Check back as lines and injuries update.</div>';
+    const L = (D.track && D.track.leagues) || {};
+    const proven = Object.keys(L).filter((k) => L[k].proven);
+    el.innerHTML = '<div class="empty"><b>No bet recommended right now.</b> ' + (proven.length
+      ? "No game in " + proven.map(esc).join(", ") + " shows a clear edge over the odds, so the safest play is to pass."
+      : "The model has not yet proven it beats the betting odds in any league, so it does not pick anyone. See Model check below.") + "</div>";
     return;
   }
   el.innerHTML = D.picks.map((p) => {
@@ -225,6 +234,18 @@ $("stake").addEventListener("input", (e) => {
   try { if (v > 0) localStorage.setItem("edge-stake", String(v)); } catch (err) {}
   renderPicks(); renderGames();
 });
+function renderCheck() {
+  const L = (D.track && D.track.leagues) || {}, el = $("check");
+  const keys = Object.keys(L);
+  if (!keys.length) { el.innerHTML = '<div class="empty">No finished games with saved predictions yet.</div>'; return; }
+  el.innerHTML = keys.map((k) => {
+    const v = L[k];
+    const better = v.model < v.market;
+    return '<div class="game"><div class="g-meta"><span><b>' + esc(k) + "</b></span><span>" + esc(v.verdict) + "</span></div>" +
+      '<div class="note">' + v.n + " finished games. Model error " + v.model + ", odds error " + v.market + " (lower is better): " +
+      (better ? "the model is slightly ahead so far." : "the odds are more accurate so far.") + "</div></div>";
+  }).join("") + '<div class="note">A league gets picks only after ' + "100 finished games and only if the model clearly beats the odds on games it had not seen yet. Until then, passing is the right call.</div>";
+}
 function renderTrack() {
   const T = D.track, el = $("track");
   if (!T || !T.n) {
@@ -234,8 +255,7 @@ function renderTrack() {
   }
   const sign = (n) => (n >= 0 ? "+" : "-") + money(Math.abs(n));
   const lg = Object.entries(T.by_league).map(([k, v]) => esc(k) + " " + v.w + "-" + (v.n - v.w) + " (" + sign(v.pnl) + ")").join(" · ");
-  const sc = T.scored ? '<div class="note">Probability check on ' + T.scored.n + ' games (log loss, lower is better): model ' + T.scored.model + ", market " + T.scored.market + ". " +
-    (T.n < 100 ? "Too few games to trust yet (need about 100+)." : "") + "</div>" : "";
+  const sc = "";
   const rows = T.recent.map((r) => '<div class="g-meta"><span>' + (r.won ? "WON " : "LOST ") + esc(r.team) + " " + esc(r.odds) + (r.weak ? " (weaker lean)" : "") +
     " vs " + esc(r.vs) + "</span><span>" + sign(r.pnl) + "</span></div>").join("");
   el.innerHTML = '<div class="pay"><b>' + T.wins + " won, " + (T.n - T.wins) + " lost</b> of " + T.n + " finished leans. Net " + sign(T.pnl) + " on $10 each.<br><span class=\"note\">" + lg +
@@ -243,6 +263,7 @@ function renderTrack() {
 }
 ageText();
 renderPicks();
+renderCheck();
 renderTrack();
 renderGames();
 </script>
