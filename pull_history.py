@@ -6,7 +6,7 @@ Safe to stop and rerun: games are upserted by id.
 """
 import argparse
 import time
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pull_games
 from pathlib import Path

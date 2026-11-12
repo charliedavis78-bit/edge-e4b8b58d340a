@@ -47,7 +47,12 @@ COLUMNS = [
 ]
 
 
+# Counters for this process, so main() can fail loudly when nothing came through.
+STATS = {"calls": 0, "failed": 0, "skipped_events": 0}
+
+
 def fetch(url, retries=3):
+    STATS["calls"] += 1
     for attempt in range(retries):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -56,6 +61,7 @@ def fetch(url, retries=3):
         except Exception as exc:  # network hiccup: back off and retry
             if attempt == retries - 1:
                 print("  ! failed: %s (%s)" % (url, exc), file=sys.stderr)
+                STATS["failed"] += 1
                 return None
             time.sleep(1.5 * (attempt + 1))
 
@@ -139,7 +145,8 @@ def pull_day(day, league_keys):
         for ev in data.get("events", []):
             try:
                 row = parse_event(ev, key, stamp)
-            except (KeyError, IndexError):
+            except (KeyError, IndexError, TypeError):
+                STATS["skipped_events"] += 1  # ESPN shape changed for this event
                 continue
             if row:
                 row["game_date"] = day.isoformat()
@@ -148,7 +155,7 @@ def pull_day(day, league_keys):
 
 
 def save_db(rows):
-    DATA_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(str(DATA_DIR / "games.db"))
     cols = ", ".join(COLUMNS)
     con.execute("CREATE TABLE IF NOT EXISTS games (%s, PRIMARY KEY (game_id))" % cols)
@@ -168,7 +175,7 @@ def save_db(rows):
 
 
 def save_csv(day, rows):
-    DATA_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     with open(DATA_DIR / ("games_%s.csv" % day.isoformat()), "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS)
         w.writeheader()
@@ -211,6 +218,13 @@ def main():
         if not args.quiet:
             print_slate(day, rows)
     print("\nSaved %d games to %s" % (total, DATA_DIR / "games.db"))
+    if STATS["skipped_events"]:
+        print("  ! skipped %d events ESPN sent in an unexpected shape" % STATS["skipped_events"], file=sys.stderr)
+    if STATS["calls"] and STATS["failed"] == STATS["calls"]:
+        # Every request failed: stop the refresh so the run shows red and GitHub emails the owner,
+        # instead of publishing a page that silently keeps old lines.
+        print("ERROR: all %d ESPN requests failed; nothing was pulled." % STATS["calls"], file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

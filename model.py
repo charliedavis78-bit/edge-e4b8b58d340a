@@ -16,8 +16,8 @@ from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
 
-from injuries import team_impact, team_notes
-from bet_math import american_to_decimal, devig, ev_per_dollar, kelly
+from injuries import team_impact
+from bet_math import devig, ev_per_dollar, kelly
 
 DB = Path(__file__).parent / "data" / "games.db"
 # Points-rating model (replaced the old win/loss Elo on 2026-11-12; Elo scored worse than this on both

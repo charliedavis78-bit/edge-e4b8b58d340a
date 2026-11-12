@@ -72,27 +72,39 @@ def _fetch_stats(league, athlete_id):
 
 def refresh():
     con = sqlite3.connect(str(DB))
-    con.execute("DROP TABLE IF EXISTS injuries")
-    con.execute("CREATE TABLE injuries (league, team, player, position, status, detail, updated, pulled_at, athlete_id)")
+    cols = "(league, team, player, position, status, detail, updated, pulled_at, athlete_id)"
+    con.execute("CREATE TABLE IF NOT EXISTS injuries " + cols)
+    # Fill a fresh table first and swap it in only if at least one feed answered, so a feed outage
+    # keeps the last good list instead of wiping it (which would also drop the model's injury penalty).
+    con.execute("DROP TABLE IF EXISTS injuries_new")
+    con.execute("CREATE TABLE injuries_new " + cols)
     con.execute("CREATE TABLE IF NOT EXISTS player_stats (league, athlete_id, gp, min, pts, fetched_at, PRIMARY KEY (league, athlete_id))")
     # one row per day per player/status: history for testing the injury effect later
     con.execute("CREATE TABLE IF NOT EXISTS injury_history (day, league, team, player, athlete_id, status, PRIMARY KEY (day, league, team, player, status))")
     now = datetime.utcnow().isoformat(timespec="seconds") + "Z"
     day = datetime.now().date().isoformat()
+    ok = 0
     for lg, path in FEEDS.items():
         try:
             data = _get("https://site.api.espn.com/apis/site/v2/sports/%s/injuries" % path)
         except Exception as e:
             print("  ! %s failed: %s" % (lg, e)); continue
+        ok += 1
         for t in data.get("injuries", []):
             for i in t.get("injuries", []):
                 a = i.get("athlete", {})
                 aid = _athlete_id(a)
-                con.execute("INSERT INTO injuries VALUES (?,?,?,?,?,?,?,?,?)", (
+                con.execute("INSERT INTO injuries_new VALUES (?,?,?,?,?,?,?,?,?)", (
                     lg, t.get("displayName"), a.get("displayName"), (a.get("position") or {}).get("abbreviation"),
                     i.get("status"), i.get("shortComment"), i.get("date"), now, aid))
                 con.execute("INSERT OR IGNORE INTO injury_history VALUES (?,?,?,?,?,?)",
                             (day, lg, t.get("displayName"), a.get("displayName"), aid, i.get("status")))
+    if ok:
+        con.execute("DROP TABLE injuries")
+        con.execute("ALTER TABLE injuries_new RENAME TO injuries")
+    else:
+        con.execute("DROP TABLE injuries_new")
+        print("  ! every injury feed failed: keeping the previous injury list")
     con.commit()
 
     # player stats for anyone who might miss time (cached 12 hours)

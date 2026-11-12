@@ -7,7 +7,7 @@
 import argparse
 import json
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from injuries import team_notes
@@ -74,7 +74,10 @@ def main():
     a = ap.parse_args()
     data = build(a.bankroll)
     tpl = (HERE / "page_template.html").read_text()
-    html = tpl.replace("/*__DATA__*/null", json.dumps(data, separators=(",", ":")))
+    # The data sits inside a <script> tag: escape "</" so text from ESPN (team, player or status names)
+    # can never close the tag early and break or inject into the page. "<\/" is the same string in JS.
+    payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+    html = tpl.replace("/*__DATA__*/null", payload)
     (HERE / "page.html").write_text(html)
     if a.site:
         # Standalone page for GitHub Pages: needs its own doctype, viewport and base styles.

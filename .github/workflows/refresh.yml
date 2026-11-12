@@ -36,9 +36,14 @@ jobs:
           path: data
           key: edge-data-${{ github.run_id }}
           restore-keys: edge-data-
-      - name: Rebuild history if the cache is empty (first run, about 5 minutes)
+      - name: Rebuild history if the cache is empty (first run, a few minutes)
         if: steps.cache.outputs.cache-hit == '' && hashFiles('data/games.db') == ''
-        run: python3 pull_games.py --date "$(date +%F)" --days-back 50 --quiet --leagues nhl nba ncaam ncaaw
+        # Pull back to October 1 of the current season, so the ratings see every game this season.
+        # (A fixed 50 days would silently drop early-season games once the season is older than that.)
+        run: |
+          DAYS=$(python3 -c "from datetime import date; t = date.today(); s = date(t.year if t.month >= 8 else t.year - 1, 10, 1); print(max((t - s).days, 1))")
+          echo "Rebuilding $DAYS days of history"
+          python3 pull_games.py --date "$(date +%F)" --days-back "$DAYS" --quiet --leagues nhl nba ncaam ncaaw
       - name: Restore saved predictions from the repo
         run: python3 track.py restore
       - name: Pull today and tomorrow, injuries, log predictions
