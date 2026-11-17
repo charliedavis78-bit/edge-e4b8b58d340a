@@ -35,6 +35,8 @@ PARAMS = {
     "NHL": dict(hca=0.05, k=0.01, scale=1.0, rest=0.15, cap=4, keep=0.8),
     "WNBA": dict(hca=1.5, k=0.03, scale=4.5, rest=0.0, cap=25, keep=0.0),  # untested (off-season)
     "MLB": dict(hca=0.1, k=0.01, scale=2.5, rest=0.0, cap=6, keep=0.0),  # untested (off-season)
+    # Added 2026-11-16, tuned on the 2025 NFL season (284 games, Pro Bowl excluded). No back-to-backs.
+    "NFL": dict(hca=1.0, k=0.08, scale=6.0, rest=0.0, cap=21, keep=0.5),
 }
 
 

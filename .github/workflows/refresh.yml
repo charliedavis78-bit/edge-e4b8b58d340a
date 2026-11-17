@@ -44,6 +44,22 @@ jobs:
           DAYS=$(python3 -c "from datetime import date; t = date.today(); s = date(t.year if t.month >= 8 else t.year - 1, 10, 1); print(max((t - s).days, 1))")
           echo "Rebuilding $DAYS days of history"
           python3 pull_games.py --date "$(date +%F)" --days-back "$DAYS" --quiet --leagues nhl nba ncaam ncaaw
+      - name: Backfill NFL from September 1 if missing (the NFL season starts before October)
+        # Runs on a fresh rebuild and once on an older cache that has no NFL games yet; skipped after that.
+        run: |
+          NEED=$(python3 -c "
+          import sqlite3
+          from datetime import date
+          t = date.today(); s = date(t.year if t.month >= 8 else t.year - 1, 9, 1)
+          try:
+              n = sqlite3.connect('data/games.db').execute(\"SELECT COUNT(*) FROM games WHERE league='NFL' AND game_date < ?\", (date(s.year, 10, 1).isoformat(),)).fetchone()[0]
+          except sqlite3.Error:
+              n = 0
+          print(max((t - s).days, 1) if n == 0 and t >= s else 0)")
+          if [ "$NEED" -gt 0 ]; then
+            echo "Backfilling $NEED days of NFL games"
+            python3 pull_games.py --date "$(date +%F)" --days-back "$NEED" --quiet --leagues nfl
+          fi
       - name: Restore saved predictions from the repo
         run: python3 track.py restore
       - name: Pull today and tomorrow, injuries, log predictions

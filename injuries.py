@@ -19,7 +19,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 DB = Path(__file__).parent / "data" / "games.db"
-FEEDS = {"NHL": "hockey/nhl", "NBA": "basketball/nba", "WNBA": "basketball/wnba", "MLB": "baseball/mlb"}
+FEEDS = {"NHL": "hockey/nhl", "NBA": "basketball/nba", "WNBA": "basketball/wnba", "MLB": "baseball/mlb",
+         "NFL": "football/nfl"}  # NFL: listed on the page only, no rating adjustment
 STATS_PATH = {"NBA": "basketball/nba", "WNBA": "basketball/wnba"}
 # statuses that likely mean the player does not play (Day-To-Day = uncertain)
 OUT = ("out", "injured reserve", "suspension", "doubtful")

@@ -34,6 +34,7 @@ LEAGUES = {
     "ncaam": ("basketball/mens-college-basketball", "NCAA Men", "&groups=50"),
     "ncaaw": ("basketball/womens-college-basketball", "NCAA Women", "&groups=50"),
     "mlb": ("baseball/mlb", "MLB", ""),
+    "nfl": ("football/nfl", "NFL", ""),
 }
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -91,6 +92,8 @@ def parse_event(ev, league_key, pulled_at):
     if "home" not in teams or "away" not in teams:
         return None
     home, away = teams["home"], teams["away"]
+    if league_key == "nfl" and {home["team"].get("displayName"), away["team"].get("displayName")} & {"AFC", "NFC"}:
+        return None  # Pro Bowl: an exhibition, not a real game, so it must not move team ratings
 
     def rec(t):
         for r in t.get("records") or []:

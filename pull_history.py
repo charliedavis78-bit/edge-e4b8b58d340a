@@ -16,7 +16,7 @@ pull_games.DATA_DIR = Path(__file__).parent / "data" / "history"
 ap = argparse.ArgumentParser()
 ap.add_argument("--start", required=True)
 ap.add_argument("--end", required=True)
-ap.add_argument("--leagues", nargs="+", default=["nhl", "nba", "ncaam", "ncaaw"])
+ap.add_argument("--leagues", nargs="+", default=["nhl", "nba", "ncaam", "ncaaw", "nfl"])
 a = ap.parse_args()
 d = datetime.strptime(a.start, "%Y-%m-%d").date()
 end = datetime.strptime(a.end, "%Y-%m-%d").date()
